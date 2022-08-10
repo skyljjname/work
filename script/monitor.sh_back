@@ -1,0 +1,144 @@
+#!/bin/bash
+
+#内网IP
+#in_ip=(IAN1 IAN2 IAN3 IAN4 MAN)
+in_ip=(IAN1 IAN2 IAN3 IAN4)
+out_ip=(EAN1 EAN2 EAN3 EAN4)
+
+#处理特殊进程proxy
+process_proxy()
+{
+    #配置文件中获取代理数量
+    agent_num=2
+    if [ "$1" -lt "$agent_num" ]
+    then
+        #后台进程小于数据库数量则为异常，重启proxy
+        : #占位符
+        #echo "proxy abnormal"
+    else
+        echo "proxy normal"
+    fi
+}
+#查询进程是否存在
+query_process()
+{
+    echo "输入查询的进程名或服务名"
+    read  process_name
+    #echo $process_name
+    #ps aux | grep "$process_name" | grep -v "grep"
+    process_num=`ps aux | grep "$process_name" | grep -v "grep"| wc -l`
+    if [ "$process_num" -le 0 ]
+    then
+        echo $process_name"的数量为"$process_num
+        echo "no process, exec abnormal, do something"
+    else
+        echo $process_name"的数量为"$process_num
+        echo "exec result normal,do something"
+        #记录时间和服务名，重启进程或服务
+    fi
+
+    if [ "$process_name" == "proxy" ]
+    then
+        query_port
+        process_proxy $process_num
+    fi
+}
+
+#查询端口，需要输入进程名或端口号
+query_port()
+{
+    echo "输入查询的进程名或端口号"
+    read port
+    echo "1" | sudo -S netstat -tunpl | grep "$port" # -S表示将echo输出的标准流读取，作为输入密码
+}
+
+#更换IP
+chage_ip()
+{
+    num_ip=6 #默认IP：1(MAN)、2、3、4、5网段，从6开始更换不影响其他网口
+    #截取
+    recv_ip=$2 #$2直接传进去截取不允许，不知道为什么
+    intercept=${recv_ip##*.} #截取IP地址192.168.160.128最后一个.后面的数值 128
+    while [ $num_ip -le 10 ]
+    do
+        replace_ip=192.168.$num_ip.$intercept #替换IP
+        #ifconfig $1 $replace_ip netmask 255.255.255.0 #修改IP
+        #ifconfig $1 |grep "inet addr" | awk '{print $2}' | tr -d "addr:" #再次获取
+        echo "修改后获取的IP "$1":"$replace_ip
+        let num_ip+=1 #网段自加1
+        #sleep 5 #从修改IP到液晶屏显示需要大约5s钟
+    done
+    num_ip=6 #默认IP：1、2、3、4、5
+}
+
+#获取ip
+get_ip()
+{
+    #读取文件中的值判断内外网版,获取IP、更换IP、显示IP
+    for role in `cat "./test"` #通过命令获取的值有‘\n’无法判断，去除后一样不能判断
+    do
+        echo $role
+        if [ "$role" != 1 ]
+        then
+            #获取外网IP
+            for net_card_name in "${out_ip[@]}"
+            do
+                net_card_ip=`ifconfig ens33 |grep "inet 地址" | awk '{print $2}' | tr -d "地址:"`
+                #echo $net_card_name
+                #net_card_ip=ifconfig $net_card_name |grep "inet addr" | awk '{print $2}' | tr -d "addr:"
+                echo "修改前的IP "$net_card_name":"$net_card_ip
+                #更换外网IP
+                chage_ip $net_card_name $net_card_ip
+            done
+        else
+            #获取内网IP
+            for net_card_name in "${in_ip[@]}"
+            do
+                net_card_ip=`ifconfig ens33 |grep "inet 地址" | awk '{print $2}' | tr -d "地址:"`
+                #net_card_ip=ifconfig $net_card_name |grep "inet addr" | awk '{print $2}' | tr -d "addr:"
+                echo "修改前的IP "$net_card_name":"$net_card_ip
+                #更换内网IP
+                chage_ip $net_card_name $net_card_ip
+                #查看lcd显示
+            done
+        fi
+    done
+}
+
+#给每个网卡制造速度
+make_speed()
+{
+    #读取文件中的值判断内外网版,获取IP、更换IP、显示IP
+    for role in `cat "./test"`
+    do
+        echo $role
+        if [ "$role" != 1 ]
+        then
+            #获取外网IP
+            for speed_ip_name in "${out_ip[@]}"
+            do
+                speed_ip_=`ifconfig ens33 |grep "inet 地址" | awk '{print $2}' | tr -d "地址:"`
+                #speed_ip_=ifconfig $speed_ip_name |grep "inet addr" | awk '{print $2}' | tr -d "addr:"
+                #循环给各网卡制造速度
+                echo "${speed_ip_name}"":""${speed_ip_}"
+                #截取网段后连接同网段IP
+            done
+        else
+            #获取内网IP
+            for speed_ip_name in "${in_ip[@]}"
+            do
+                speed_ip_=`ifconfig ens33 |grep "inet 地址" | awk '{print $2}' | tr -d "地址:"`
+                #speed_ip_=ifconfig $speed_ip_name |grep "inet addr" | awk '{print $2}' | tr -d "addr:"
+                #循环给各网卡制造速度
+                echo "${speed_ip_name}"":""${speed_ip_}"
+                #截取网段后连接同网段IP    
+            done
+        fi
+    done
+}
+
+
+#query_port #查询端口
+#query_process #查询进程
+get_ip #获取网卡IP并循环修改
+#make_speed #循环给各网卡制造速度
